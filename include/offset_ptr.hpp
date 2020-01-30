@@ -413,9 +413,9 @@ struct offset_ptr {
 
     // Constructors.
 
-    explicit offset_ptr ( ) noexcept : offset ( base.incr_ref_count ( ) ) {}
+    explicit offset_ptr ( ) noexcept : offset ( offset_ptr::base.incr_ref_count ( ) ) {}
 
-    explicit offset_ptr ( std::nullptr_t ) : offset ( base.incr_ref_count ( ) ) {}
+    explicit offset_ptr ( std::nullptr_t ) : offset ( offset_ptr::base.incr_ref_count ( ) ) {}
 
     explicit offset_ptr ( offset_ptr const & ) noexcept = delete;
 
@@ -427,12 +427,12 @@ struct offset_ptr {
         tmp.swap ( *this );
     }
 
-    offset_ptr ( pointer p_ ) noexcept : offset ( base.incr_ref_count ( p_ ) ) { assert ( get ( ) == p_ ); }
+    offset_ptr ( pointer p_ ) noexcept : offset ( offset_ptr::base.incr_ref_count ( p_ ) ) { assert ( get ( ) == p_ ); }
 
     // Destruct.
 
     ~offset_ptr ( ) noexcept {
-        base.decr_ref_count ( );
+        offset_ptr::base.decr_ref_count ( );
         if ( is_unique ( ) )
             delete get ( );
     }
@@ -440,7 +440,7 @@ struct offset_ptr {
     // Assignment.
 
     [[maybe_unused]] offset_ptr & operator= ( std::nullptr_t ) {
-        base.incr_ref_count ( );
+        offset_ptr::base.incr_ref_count ( );
         reset ( );
         return *this;
     }
@@ -570,7 +570,7 @@ struct offset_ptr {
                     if ( d.ptr > p_ )
                         break;
                     if ( p_ < ( d.ptr + max_size ( ) ) ) {
-                        p = &d;
+                        p = std::addressof ( d );
                         break;
                     }
                 }

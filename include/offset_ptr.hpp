@@ -615,11 +615,10 @@ namespace win {
 
 inline std::vector<void *> heaps ( ) noexcept {
     void * h[ 16 ];
-    size_t s;
-    do {
+    size_t s = GetProcessHeaps ( 0, NULL );
+    while ( GetProcessHeaps ( s, h ) != s )
         s = GetProcessHeaps ( 0, NULL );
-    } while ( GetProcessHeaps ( s, h ) != s );
-    return std::vector ( h, h + s );
+    return { h, h + s };
 }
 
 inline void * heap ( ) noexcept { return GetProcessHeap ( ); }

@@ -659,10 +659,7 @@ struct offset_ptr { // offset against this pointer.
         tmp.swap ( *this );
     }
 
-    offset_ptr ( pointer p_ ) noexcept : offset ( offset_from_ptr ( p_ ) ) {
-        // std::cout << p_ << " " << get ( ) << nl;
-        assert ( get ( ) == p_ );
-    }
+    offset_ptr ( pointer p_ ) noexcept : offset ( offset_from_ptr ( p_ ) ) { assert ( get ( ) == p_ ); }
 
     // Destruct.
 
@@ -714,7 +711,7 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] static pointer get ( offset_type offset_ ) noexcept { return ptr_from_offset ( offset_view ( offset_ ) ); }
 
     [[nodiscard]] static size_type max_size ( ) noexcept {
-        return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 0;
+        return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 1;
     }
 
     void swap ( offset_ptr & src ) noexcept { std::swap ( *this, src ); }
@@ -773,7 +770,7 @@ struct offset_ptr { // offset against this pointer.
     static constexpr offset_type offset_mask = offset_ptr::make_offset_mask ( );
 
     [[nodiscard]] static constexpr pointer mask_low ( pointer p_ ) noexcept {
-        return reinterpret_cast<pointer> ( ( reinterpret_cast<std::uintptr_t> ( p_ ) & 0xFFFF'FFFF'0000'0000 ) >> 4 );
+        return reinterpret_cast<pointer> ( ( reinterpret_cast<std::uintptr_t> ( p_ ) & 0xFFFF'FFFF'0000'0000 ) );
     }
 
     [[nodiscard]] static int pointer_alignment ( void * ptr_ ) noexcept {

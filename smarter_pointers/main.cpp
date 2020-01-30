@@ -66,7 +66,7 @@ int main ( ) {
 
     try {
 
-        heap_offset_ptr<int> p0 ( ( int * ) std::malloc ( 8 * sizeof ( int ) ) );
+        sax::heap_offset_ptr<int> p0 ( ( int * ) std::malloc ( 8 * sizeof ( int ) ) );
 
         p0.weakify ( );
 

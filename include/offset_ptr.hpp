@@ -607,6 +607,10 @@ thread_local typename offset_ptr<Type>::offset_base offset_ptr<Type>::base;
 
 extern unsigned long __declspec( dllimport ) __stdcall GetProcessHeaps ( unsigned long NumberOfHeaps, void ** ProcessHeaps );
 
+namespace sax {
+
+namespace detail {
+
 namespace win {
 
 inline std::vector<void *> heaps ( ) noexcept {
@@ -630,7 +634,7 @@ struct heap_offset_ptr_pointer {};
 struct stack_offset_ptr_pointer {};
 
 template<typename Type, typename Where>
-struct offset_ptr { // offset against this pointer.
+struct offset_ptr {
     public:
     using value_type    = Type;
     using pointer       = value_type *;
@@ -826,8 +830,12 @@ struct offset_ptr { // offset against this pointer.
 template<typename Type, typename Where>
 thread_local typename offset_ptr<Type, Where>::pointer offset_ptr<Type, Where>::base = offset_ptr::base_pointer ( );
 
-template<typename Type>
-using heap_offset_ptr = offset_ptr<Type, heap_offset_ptr_pointer>;
+} // namespace detail
 
 template<typename Type>
-using stack_offset_ptr = offset_ptr<Type, stack_offset_ptr_pointer>;
+using heap_offset_ptr = detail::offset_ptr<Type, detail::heap_offset_ptr_pointer>;
+
+template<typename Type>
+using stack_offset_ptr = detail::offset_ptr<Type, detail::stack_offset_ptr_pointer>;
+
+} // namespace sax

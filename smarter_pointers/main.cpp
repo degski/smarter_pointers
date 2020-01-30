@@ -70,7 +70,7 @@ int main ( ) {
 
         p0.weakify ( );
 
-        std::cout << "leaving try block" << nl;
+        std::cout << "leaving try block " << sizeof ( p0 ) << nl;
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.

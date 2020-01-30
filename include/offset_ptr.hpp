@@ -640,7 +640,7 @@ struct offset_ptr { // offset against this pointer.
     using const_reference = value_type const &;
     using rv_reference    = value_type &&;
 
-    using size_type   = std::uint64_t;
+    using size_type   = std::size_t;
     using offset_type = std::uint16_t;
 
     // Constructors.

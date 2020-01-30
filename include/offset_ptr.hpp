@@ -664,7 +664,7 @@ struct offset_ptr { // offset against this pointer.
     // Destruct.
 
     ~offset_ptr ( ) noexcept {
-        if constexpr ( not std::is_scalar<Type>::value ) {
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
             if ( is_unique ( ) )
                 delete get ( );
         }
@@ -733,7 +733,7 @@ struct offset_ptr { // offset against this pointer.
     void reset ( pointer p_ = pointer ( ) ) noexcept {
         offset_type result = offset_from_ptr ( p_ );
         std::swap ( result, offset );
-        if constexpr ( not std::is_scalar<Type>::value ) {
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
             if ( is_unique ( ) )
                 delete get ( result );
         }
@@ -742,7 +742,7 @@ struct offset_ptr { // offset against this pointer.
     void reset ( offset_ptr<U, W> && moving_ ) noexcept {
         offset_ptr<Type, Where> result ( moving_ );
         std::swap ( result, *this );
-        if constexpr ( not std::is_scalar<Type>::value ) {
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
             if ( is_unique ( ) )
                 delete result.get ( );
         }

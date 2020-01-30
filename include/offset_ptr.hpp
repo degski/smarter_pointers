@@ -660,8 +660,8 @@ struct offset_ptr { // offset against this pointer.
     }
 
     offset_ptr ( pointer p_ ) noexcept : offset ( offset_from_ptr ( p_ ) ) {
-        std::cout << p_ << " " << get ( ) << nl;
-        // assert ( get ( ) == p_ );
+        // std::cout << p_ << " " << get ( ) << nl;
+        assert ( get ( ) == p_ );
     }
 
     // Destruct.
@@ -689,7 +689,7 @@ struct offset_ptr { // offset against this pointer.
 
     template<typename U, typename W>
     [[maybe_unused]] offset_ptr & operator= ( offset_ptr<U, W> && moving ) noexcept {
-        offset_ptr<value_type, Where> tmp ( moving.release ( ) );
+        offset_ptr<Type, Where> tmp ( moving.release ( ) );
         tmp.swap ( *this );
         return *this;
     }
@@ -710,6 +710,13 @@ struct offset_ptr { // offset against this pointer.
 
     [[nodiscard]] pointer get ( ) const noexcept { return ptr_from_offset ( offset_ptr::offset_view ( offset ) ); }
     [[nodiscard]] pointer get ( ) noexcept { return std::as_const ( *this ).get ( ); }
+
+    [[nodiscard]] static pointer get ( offset_type offset_ ) const noexcept {
+        return ptr_from_offset ( offset_ptr::offset_view ( offset_ ) );
+    }
+    [[nodiscard]] static pointer get ( offset_type offset_ ) noexcept {
+        return std::as_const ( *this ).get ( offset_type offset_ );
+    }
 
     [[nodiscard]] static size_type max_size ( ) noexcept {
         return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 0;
@@ -733,7 +740,7 @@ struct offset_ptr { // offset against this pointer.
     }
     template<typename U, typename W>
     void reset ( offset_ptr<U, W> && moving_ ) noexcept {
-        offset_ptr<value_type, Where> result ( moving_ );
+        offset_ptr<Type, Where> result ( moving_ );
         std::swap ( result, *this );
         delete result.get ( );
     }

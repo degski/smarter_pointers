@@ -605,7 +605,31 @@ template<typename Type>
 thread_local typename offset_ptr<Type>::offset_base offset_ptr<Type>::base;
 */
 
-template<typename Type>
+extern unsigned long __declspec( dllimport ) __stdcall GetProcessHeaps ( unsigned long NumberOfHeaps, void ** ProcessHeaps );
+
+namespace win {
+
+inline std::vector<void *> heaps ( ) noexcept {
+    void * h[ 16 ];
+    size_t s;
+    do {
+        s = GetProcessHeaps ( 0, NULL );
+    } while ( GetProcessHeaps ( s, h ) != s );
+    return std::vector ( h, h + s );
+}
+
+inline void * heap ( ) noexcept { return GetProcessHeap ( ); }
+
+inline void * stack ( ) noexcept {
+    volatile void * p = std::addressof ( p );
+    return const_cast<void *> ( p );
+}
+} // namespace win
+
+struct offset_ptr_heap_pointer {};
+struct offset_ptr_stack_pointer {};
+
+template<typename Type, typename Where>
 struct offset_ptr { // offset against this pointer.
     public:
     using value_type    = Type;
@@ -616,8 +640,8 @@ struct offset_ptr { // offset against this pointer.
     using const_reference = value_type const &;
     using rv_reference    = value_type &&;
 
-    using size_type   = std::int32_t;
-    using offset_type = std::int32_t;
+    using size_type   = std::uint64_t;
+    using offset_type = std::uint16_t;
 
     // Constructors.
 
@@ -629,23 +653,24 @@ struct offset_ptr { // offset against this pointer.
 
     offset_ptr ( offset_ptr && moving ) noexcept { moving.swap ( *this ); }
 
-    template<typename U>
-    explicit offset_ptr ( offset_ptr<U> && moving ) noexcept {
-        offset_ptr<value_type> tmp ( moving.release ( ) );
+    template<typename U, typename W>
+    explicit offset_ptr ( offset_ptr<U, W> && moving ) noexcept {
+        offset_ptr<value_type, Where> tmp ( moving.release ( ) );
         tmp.swap ( *this );
     }
 
     offset_ptr ( pointer p_ ) noexcept : offset ( offset_from_ptr ( p_ ) ) {
-        std::cout << p_ << " " << mask_low ( p_ ) << "   " << this << " " << pointer_alignment ( this ) << " "
-                  << ( reinterpret_cast<char *> ( p_ ) - reinterpret_cast<char *> ( this ) ) << nl;
+        std::cout << p_ << " " << get ( ) << nl;
         // assert ( get ( ) == p_ );
     }
 
     // Destruct.
 
     ~offset_ptr ( ) noexcept {
-        // if ( is_unique ( ) )
-        //  delete get ( );
+        if constexpr ( std::is_same<Where, offset_ptr_heap_pointer>::value ) {
+            if ( is_unique ( ) )
+                delete get ( );
+        }
     }
 
     // Assignment.
@@ -662,9 +687,9 @@ struct offset_ptr { // offset against this pointer.
         return *this;
     }
 
-    template<typename U>
-    [[maybe_unused]] offset_ptr & operator= ( offset_ptr<U> && moving ) noexcept {
-        offset_ptr<value_type> tmp ( moving.release ( ) );
+    template<typename U, typename W>
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr<U, W> && moving ) noexcept {
+        offset_ptr<value_type, Where> tmp ( moving.release ( ) );
         tmp.swap ( *this );
         return *this;
     }
@@ -687,15 +712,10 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] pointer get ( ) noexcept { return std::as_const ( *this ).get ( ); }
 
     [[nodiscard]] static size_type max_size ( ) noexcept {
-        return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 1;
+        return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 0;
     }
 
-    void swap ( offset_ptr & src ) noexcept {
-        auto delta_offset = static_cast<offset_type> ( std::addressof ( src ) - this );
-        std::swap ( offset, src.offset );
-        offset_ptr::offset_view ( offset ) += delta_offset;
-        offset_ptr::offset_view ( src.offset ) -= delta_offset;
-    }
+    void swap ( offset_ptr & src ) noexcept { std::swap ( *this, src ); }
 
     // Other.
 
@@ -711,9 +731,9 @@ struct offset_ptr { // offset against this pointer.
         std::swap ( result, offset );
         delete get ( result );
     }
-    template<typename U>
-    void reset ( offset_ptr<U> && moving_ ) noexcept {
-        offset_ptr<value_type> result ( moving_ );
+    template<typename U, typename W>
+    void reset ( offset_ptr<U, W> && moving_ ) noexcept {
+        offset_ptr<value_type, Where> result ( moving_ );
         std::swap ( result, *this );
         delete result.get ( );
     }
@@ -728,10 +748,10 @@ struct offset_ptr { // offset against this pointer.
 
     private:
     [[nodiscard]] offset_type offset_from_ptr ( pointer p_ ) const noexcept {
-        return static_cast<offset_type> ( p_ - addressof_this ( ) );
+        return static_cast<offset_type> ( p_ - offset_ptr::base );
     }
     [[nodiscard]] pointer ptr_from_offset ( offset_type const offset_ ) const noexcept {
-        return addressof_this ( ) + offset_ptr::offset_view ( offset_ );
+        return offset_ptr::base + offset_ptr::offset_view ( offset_ );
     }
 
     [[nodiscard]] static constexpr offset_type make_weak_mask ( ) noexcept {
@@ -755,4 +775,24 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] static inline int pointer_alignment ( void * ptr_ ) noexcept {
         return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
     }
+
+    [[nodiscard]] static pointer base_pointer ( ) noexcept {
+        if constexpr ( std::is_same<Where, offset_ptr_heap_pointer>::value ) {
+            return static_cast<pointer> ( win::heap ( ) );
+        }
+        else {
+            return static_cast<pointer> ( win::stack ( ) );
+        }
+    }
+
+    static thread_local pointer base;
 };
+
+template<typename Type, typename Where>
+thread_local typename offset_ptr<Type, Where>::pointer offset_ptr<Type, Where>::base = base_pointer ( );
+
+template<typename Type>
+using heap_offset_ptr = offset_ptr<Type, offset_ptr_heap_pointer>;
+
+template<typename Type>
+using stack_offset_ptr = offset_ptr<Type, offset_ptr_stack_pointer>;

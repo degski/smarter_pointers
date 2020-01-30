@@ -708,14 +708,11 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] const_reference operator* ( ) const noexcept { return *get ( ); }
     [[nodiscard]] reference operator* ( ) noexcept { return *get ( ); }
 
-    [[nodiscard]] pointer get ( ) const noexcept { return ptr_from_offset ( offset_ptr::offset_view ( offset ) ); }
+    [[nodiscard]] pointer get ( ) const noexcept { return offset_ptr::ptr_from_offset ( offset_ptr::offset_view ( offset ) ); }
     [[nodiscard]] pointer get ( ) noexcept { return std::as_const ( *this ).get ( ); }
 
-    [[nodiscard]] static pointer get ( offset_type offset_ ) const noexcept {
-        return ptr_from_offset ( offset_ptr::offset_view ( offset_ ) );
-    }
     [[nodiscard]] static pointer get ( offset_type offset_ ) noexcept {
-        return std::as_const ( *this ).get ( offset_type offset_ );
+        return offset_ptr::ptr_from_offset ( offset_ptr::offset_view ( offset_ ) );
     }
 
     [[nodiscard]] static size_type max_size ( ) noexcept {
@@ -757,7 +754,7 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] offset_type offset_from_ptr ( pointer p_ ) const noexcept {
         return static_cast<offset_type> ( p_ - offset_ptr::base );
     }
-    [[nodiscard]] pointer ptr_from_offset ( offset_type const offset_ ) const noexcept {
+    [[nodiscard]] static pointer ptr_from_offset ( offset_type const offset_ ) noexcept {
         return offset_ptr::base + offset_ptr::offset_view ( offset_ );
     }
 
@@ -775,11 +772,11 @@ struct offset_ptr { // offset against this pointer.
 
     offset_type offset = { };
 
-    [[nodiscard]] static constexpr pointer mask_low ( pointer p_ ) noexcept {
+    [[nodiscard]] constexpr pointer mask_low ( pointer p_ ) noexcept {
         return reinterpret_cast<pointer> ( ( reinterpret_cast<std::uintptr_t> ( p_ ) & 0xFFFF'FFFF'0000'0000 ) >> 4 );
     }
 
-    [[nodiscard]] static inline int pointer_alignment ( void * ptr_ ) noexcept {
+    [[nodiscard]] int pointer_alignment ( void * ptr_ ) const noexcept {
         return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
     }
 
@@ -796,7 +793,7 @@ struct offset_ptr { // offset against this pointer.
 };
 
 template<typename Type, typename Where>
-thread_local typename offset_ptr<Type, Where>::pointer offset_ptr<Type, Where>::base = base_pointer ( );
+thread_local typename offset_ptr<Type, Where>::pointer offset_ptr<Type, Where>::base = offset_ptr::base_pointer ( );
 
 template<typename Type>
 using heap_offset_ptr = offset_ptr<Type, offset_ptr_heap_pointer>;

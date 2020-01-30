@@ -427,7 +427,7 @@ struct offset_ptr {
         tmp.swap ( *this );
     }
 
-    offset_ptr ( pointer p_ ) noexcept : offset ( base.incr_ref_count ( p_ - offset_ptr::base.ptr ) ) { assert ( get ( ) == p_ ); }
+    offset_ptr ( pointer p_ ) noexcept : offset ( base.incr_ref_count ( p_ ) ) { assert ( get ( ) == p_ ); }
 
     // Destruct.
 
@@ -460,7 +460,7 @@ struct offset_ptr {
     }
 
     [[maybe_unused]] offset_ptr & operator= ( pointer p_ ) noexcept {
-        offset = static_cast<offset_type> ( p_ - offset_ptr::base.ptr );
+        offset = static_cast<offset_type> ( p_ - offset_ptr::base.get ( ) );
         assert ( get ( ) == p_ );
         return *this;
     }
@@ -473,8 +473,8 @@ struct offset_ptr {
     [[nodiscard]] const_reference operator* ( ) const noexcept { return *( this->operator-> ( ) ); }
     [[nodiscard]] reference operator* ( ) noexcept { return *( this->operator-> ( ) ); }
 
-    [[nodiscard]] pointer get ( ) const noexcept { return offset_ptr::base.ptr + offset_view ( offset ); }
-    [[nodiscard]] pointer get ( offset_type o_ ) const noexcept { return offset_ptr::base + o_; }
+    [[nodiscard]] pointer get ( ) const noexcept { return offset_ptr::base.get ( ) + offset_view ( offset ); }
+    [[nodiscard]] pointer get ( offset_type o_ ) const noexcept { return offset_ptr::base.get ( ) + o_; }
 
     [[nodiscard]] static size_type max_size ( ) noexcept {
         return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 1;
@@ -492,7 +492,7 @@ struct offset_ptr {
 
     void reset ( ) noexcept { delete release ( ); }
     void reset ( pointer p_ = pointer ( ) ) noexcept {
-        offset_type result = p_ - offset_ptr::base.ptr;
+        offset_type result = p_ - offset_ptr::base.get ( );
         std::swap ( result, offset );
         delete get ( result );
     }
@@ -530,35 +530,43 @@ struct offset_ptr {
         std::experimental::fixed_capacity_vector<offset_base_data, 8> seg;
 
         public:
-        [[maybe_unused]] offset_type incr_ref_count ( pointer p_ ) noexcept {
+        [[maybe_unused]] offset_type incr_ref_count ( pointer p_ = nullptr ) {
             if ( offset_base_data * p = get_base_data_ptr ( p_ ); p ) {
                 if ( p->ref_count ) {
                     ++p->ref_count;
                     return p_ - p->ptr;
                 }
-                else {
+                else
                     *p = { p_, std::intptr_t{ 1 } };
-                    return 0;
-                }
             }
             else {
-                seg.emplace_back ( offset_base_data{ p_, std::intptr_t{ 1 } } );
-                std::sort ( std::begin ( seg ), std::end ( seg ),
-                            [] ( offset_base_data const & a, offset_base_data const & b ) noexcept { return a.ptr < b.ptr; } );
-                return 0;
+                if ( seg.size ( ) < 8ull ) {
+                    seg.emplace_back ( offset_base_data{ p_, std::intptr_t{ 1 } } );
+                    std::sort ( std::begin ( seg ), std::end ( seg ),
+                                [] ( offset_base_data const & a, offset_base_data const & b ) noexcept { return a.ptr < b.ptr; } );
+                }
+                else {
+                    auto it = std::find_if ( std::begin ( seg ), std::end ( seg ),
+                                             [] ( offset_base_data const & a ) { return not a.ref_count; } );
+                    if ( std::end ( seg ) == it )
+                        *it = { p_, std::intptr_t{ 1 } };
+                    else
+                        throw std::runtime_error ( "maximum number of segments exceeded" );
+                }
             }
+            return 0;
         }
 
         void decr_ref_count ( ) noexcept { --get_base_data_ptr ( )->ref_count; }
 
-        const_pointer get ( ) const noexcept { return get_base_data_ptr->ptr; }
-        pointer get ( ) noexcept { return get_base_data_ptr->ptr; }
+        const_pointer get ( ) const noexcept { return get_base_data_ptr ( )->ptr; }
+        pointer get ( ) noexcept { return get_base_data_ptr ( )->ptr; }
 
         private:
-        offset_base_data * get_base_data_ptr ( pointer p_ ) const noexcept {
-            offset_base_data * p = nullptr;
+        offset_base_data * get_base_data_ptr ( pointer p_ = nullptr ) const noexcept {
+            offset_base_data const * p = nullptr;
             if ( p_ ) {
-                for ( offset_base_data & d : seg ) {
+                for ( offset_base_data const & d : seg ) {
                     if ( d.ptr > p_ )
                         break;
                     if ( p_ < ( d.ptr + max_size ( ) ) ) {
@@ -567,7 +575,7 @@ struct offset_ptr {
                     }
                 }
             }
-            return p;
+            return const_cast<offset_base_data *> ( p );
         }
     };
 

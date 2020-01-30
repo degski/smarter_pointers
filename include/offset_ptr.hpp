@@ -38,6 +38,8 @@
 #include <type_traits>
 #include <variant>
 
+#include <experimental/fixed_capacity_vector>
+
 template<typename T>
 class unique_ptr {
 
@@ -218,6 +220,8 @@ unique_ptr<T> make_unique_default_init ( std::size_t size ) {
 template<class T, class... Args>
 typename detail::_Unique_if<T>::_Known_bound make_unique_default_init ( Args &&... ) = delete;
 
+/*
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename T>
@@ -388,3 +392,189 @@ struct offset_ptr {
 
 template<typename T>
 thread_local typename offset_ptr<T>::offset_base offset_ptr<T>::base;
+
+*/
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<typename Type>
+struct offset_ptr {
+    public:
+    using value_type    = Type;
+    using pointer       = value_type *;
+    using const_pointer = value_type const *;
+
+    using reference       = value_type &;
+    using const_reference = value_type const &;
+    using rv_reference    = value_type &&;
+
+    using size_type   = std::uint32_t;
+    using offset_type = std::uint16_t;
+
+    // Constructors.
+
+    explicit offset_ptr ( ) noexcept : offset ( base.incr_ref_count ( ) ) {}
+
+    explicit offset_ptr ( std::nullptr_t ) : offset ( base.incr_ref_count ( ) ) {}
+
+    explicit offset_ptr ( offset_ptr const & ) noexcept = delete;
+
+    offset_ptr ( offset_ptr && moving ) noexcept { moving.swap ( *this ); }
+
+    template<typename U>
+    explicit offset_ptr ( offset_ptr<U> && moving ) noexcept {
+        offset_ptr<value_type> tmp ( moving.release ( ) );
+        tmp.swap ( *this );
+    }
+
+    offset_ptr ( pointer p_ ) noexcept : offset ( base.incr_ref_count ( p_ - offset_ptr::base.ptr ) ) { assert ( get ( ) == p_ ); }
+
+    // Destruct.
+
+    ~offset_ptr ( ) noexcept {
+        base.decr_ref_count ( );
+        if ( is_unique ( ) )
+            delete get ( );
+    }
+
+    // Assignment.
+
+    [[maybe_unused]] offset_ptr & operator= ( std::nullptr_t ) {
+        base.incr_ref_count ( );
+        reset ( );
+        return *this;
+    }
+
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr const & ) noexcept = delete;
+
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr && moving ) noexcept {
+        moving.swap ( *this );
+        return *this;
+    }
+
+    template<typename U>
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr<U> && moving ) noexcept {
+        offset_ptr<value_type> tmp ( moving.release ( ) );
+        tmp.swap ( *this );
+        return *this;
+    }
+
+    [[maybe_unused]] offset_ptr & operator= ( pointer p_ ) noexcept {
+        offset = static_cast<offset_type> ( p_ - offset_ptr::base.ptr );
+        assert ( get ( ) == p_ );
+        return *this;
+    }
+
+    // Get.
+
+    [[nodiscard]] const_pointer operator-> ( ) const noexcept { return get ( ); }
+    [[nodiscard]] pointer operator-> ( ) noexcept { return const_cast<pointer> ( std::as_const ( *this ).get ( ) ); }
+
+    [[nodiscard]] const_reference operator* ( ) const noexcept { return *( this->operator-> ( ) ); }
+    [[nodiscard]] reference operator* ( ) noexcept { return *( this->operator-> ( ) ); }
+
+    [[nodiscard]] pointer get ( ) const noexcept { return offset_ptr::base.ptr + offset_view ( offset ); }
+    [[nodiscard]] pointer get ( offset_type o_ ) const noexcept { return offset_ptr::base + o_; }
+
+    [[nodiscard]] static size_type max_size ( ) noexcept {
+        return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 1;
+    }
+
+    void swap ( offset_ptr & src ) noexcept { std::swap ( offset, src.offset ); }
+
+    // Other.
+
+    [[nodiscard]] pointer release ( ) noexcept {
+        offset_type result = { };
+        std::swap ( result, offset );
+        return get ( result );
+    }
+
+    void reset ( ) noexcept { delete release ( ); }
+    void reset ( pointer p_ = pointer ( ) ) noexcept {
+        offset_type result = p_ - offset_ptr::base.ptr;
+        std::swap ( result, offset );
+        delete get ( result );
+    }
+    template<typename U>
+    void reset ( unique_ptr<U> && moving_ ) noexcept {
+        offset_ptr<value_type> result ( moving_ );
+        std::swap ( result, *this );
+        delete result.get ( );
+    }
+
+    void weakify ( ) noexcept { offset = ( offset_view ( offset ) | weak_mask ); }
+    void uniquify ( ) noexcept { offset &= offset_mask; }
+
+    [[nodiscard]] bool is_weak ( ) const noexcept { return static_cast<bool> ( offset & weak_mask ); }
+    [[nodiscard]] bool is_unique ( ) const noexcept { return not is_weak ( ); }
+
+    [[nodiscard]] static constexpr offset_type offset_view ( offset_type o_ ) noexcept { return o_ & offset_mask; }
+
+    private:
+    [[nodiscard]] static constexpr offset_type make_weak_mask ( ) noexcept {
+        return static_cast<offset_type> ( std::uint64_t ( 1 ) << ( sizeof ( size_type ) * 8 - 1 ) );
+    }
+    [[nodiscard]] static constexpr offset_type make_offset_mask ( ) noexcept { return ~make_weak_mask ( ); }
+
+    static constexpr offset_type weak_mask   = offset_ptr::make_weak_mask ( );
+    static constexpr offset_type offset_mask = offset_ptr::make_offset_mask ( );
+
+    class offset_base {
+
+        struct offset_base_data {
+            pointer ptr;
+            std::intptr_t ref_count = 0;
+        };
+
+        std::experimental::fixed_capacity_vector<offset_base_data, 8> seg;
+
+        public:
+        [[maybe_unused]] offset_type incr_ref_count ( pointer p_ ) noexcept {
+            if ( offset_base_data * p = get_base_data_ptr ( p_ ); p ) {
+                if ( p->ref_count ) {
+                    ++p->ref_count;
+                    return p_ - p->ptr;
+                }
+                else {
+                    *p = { p_, std::intptr_t{ 1 } };
+                    return 0;
+                }
+            }
+            else {
+                seg.emplace_back ( offset_base_data{ p_, std::intptr_t{ 1 } } );
+                std::sort ( std::begin ( seg ), std::end ( seg ),
+                            [] ( offset_base_data const & a, offset_base_data const & b ) noexcept { return a.ptr < b.ptr; } );
+                return 0;
+            }
+        }
+
+        void decr_ref_count ( ) noexcept { --get_base_data_ptr ( )->ref_count; }
+
+        const_pointer get ( ) const noexcept { return get_base_data_ptr->ptr; }
+        pointer get ( ) noexcept { return get_base_data_ptr->ptr; }
+
+        private:
+        offset_base_data * get_base_data_ptr ( pointer p_ ) const noexcept {
+            offset_base_data * p = nullptr;
+            if ( p_ ) {
+                for ( offset_base_data & d : seg ) {
+                    if ( d.ptr > p_ )
+                        break;
+                    if ( p_ < ( d.ptr + max_size ( ) ) ) {
+                        p = &d;
+                        break;
+                    }
+                }
+            }
+            return p;
+        }
+    };
+
+    offset_type offset = { };
+
+    static thread_local offset_base base;
+};
+
+template<typename Type>
+thread_local typename offset_ptr<Type>::offset_base offset_ptr<Type>::base;

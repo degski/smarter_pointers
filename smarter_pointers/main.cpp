@@ -39,6 +39,8 @@
 #include <sax/splitmix.hpp>
 #include <sax/uniform_int_distribution.hpp>
 
+#include <Windows.h>
+
 #include <offset_ptr.hpp>
 
 // -fsanitize=address
@@ -58,17 +60,21 @@ void handleEptr ( std::exception_ptr eptr ) { // Passing by value is ok.
     }
 }
 
-int main8879 ( ) {
+int main ( ) {
 
     std::exception_ptr eptr;
 
     try {
+
+        offset_ptr<int> p;
+
+        /*
         offset_ptr<int> p;
         int i = 999;
         p     = &i;
 
         std::cout << p.get ( ) << nl;
-
+        */
         std::cout << "leaving try block" << nl;
     }
     catch ( ... ) {
@@ -80,6 +86,8 @@ int main8879 ( ) {
 
     return EXIT_SUCCESS;
 }
+
+/*
 
 int a1[] = { 1, 2, 3 };
 int a2[] = { 10, 11, 12 };
@@ -100,3 +108,5 @@ int main ( ) {
     cout << *pb << endl;
     cout << *( pb + 1 ) << endl;
 }
+
+*/

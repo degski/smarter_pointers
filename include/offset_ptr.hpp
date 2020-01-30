@@ -626,8 +626,8 @@ inline void * stack ( ) noexcept {
 }
 } // namespace win
 
-struct offset_ptr_heap_pointer {};
-struct offset_ptr_stack_pointer {};
+struct heap_offset_ptr_pointer {};
+struct stack_offset_ptr_pointer {};
 
 template<typename Type, typename Where>
 struct offset_ptr { // offset against this pointer.
@@ -789,7 +789,7 @@ struct offset_ptr { // offset against this pointer.
     }
 
     [[nodiscard]] static pointer base_pointer ( ) noexcept {
-        if constexpr ( std::is_same<Where, offset_ptr_heap_pointer>::value ) {
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
             return static_cast<pointer> ( win::heap ( ) );
         }
         else {
@@ -804,7 +804,7 @@ template<typename Type, typename Where>
 thread_local typename offset_ptr<Type, Where>::pointer offset_ptr<Type, Where>::base = offset_ptr::base_pointer ( );
 
 template<typename Type>
-using heap_offset_ptr = offset_ptr<Type, offset_ptr_heap_pointer>;
+using heap_offset_ptr = offset_ptr<Type, heap_offset_ptr_pointer>;
 
 template<typename Type>
-using stack_offset_ptr = offset_ptr<Type, offset_ptr_stack_pointer>;
+using stack_offset_ptr = offset_ptr<Type, stack_offset_ptr_pointer>;

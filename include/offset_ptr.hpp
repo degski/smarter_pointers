@@ -777,7 +777,7 @@ struct offset_ptr { // offset against this pointer.
     }
 
     [[nodiscard]] static int pointer_alignment ( void * ptr_ ) noexcept {
-        return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
+        return ( int ) ( ( ( std::uintptr_t ) ptr_ ) & ( ( std::uintptr_t ) ( -( ( std::intptr_t ) ptr_ ) ) ) );
     }
 
     [[nodiscard]] static pointer base_pointer ( ) noexcept {

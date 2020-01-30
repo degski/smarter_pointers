@@ -664,7 +664,7 @@ struct offset_ptr { // offset against this pointer.
     // Destruct.
 
     ~offset_ptr ( ) noexcept {
-        if constexpr ( std::is_same<Where, offset_ptr_heap_pointer>::value ) {
+        if constexpr ( not std::is_scalar<Type>::value ) {
             if ( is_unique ( ) )
                 delete get ( );
         }
@@ -724,17 +724,28 @@ struct offset_ptr { // offset against this pointer.
         return get ( result );
     }
 
-    void reset ( ) noexcept { delete release ( ); }
+    void reset ( ) noexcept {
+        if constexpr ( not std::is_scalar<Type>::value ) {
+            if ( is_unique ( ) )
+                delete release ( );
+        }
+    }
     void reset ( pointer p_ = pointer ( ) ) noexcept {
         offset_type result = offset_from_ptr ( p_ );
         std::swap ( result, offset );
-        delete get ( result );
+        if constexpr ( not std::is_scalar<Type>::value ) {
+            if ( is_unique ( ) )
+                delete get ( result );
+        }
     }
     template<typename U, typename W>
     void reset ( offset_ptr<U, W> && moving_ ) noexcept {
         offset_ptr<Type, Where> result ( moving_ );
         std::swap ( result, *this );
-        delete result.get ( );
+        if constexpr ( not std::is_scalar<Type>::value ) {
+            if ( is_unique ( ) )
+                delete result.get ( );
+        }
     }
 
     void weakify ( ) noexcept { offset = ( offset_ptr::offset_view ( offset ) | weak_mask ); }

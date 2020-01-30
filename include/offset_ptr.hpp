@@ -708,12 +708,10 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] const_reference operator* ( ) const noexcept { return *get ( ); }
     [[nodiscard]] reference operator* ( ) noexcept { return *get ( ); }
 
-    [[nodiscard]] pointer get ( ) const noexcept { return offset_ptr::ptr_from_offset ( offset_ptr::offset_view ( offset ) ); }
+    [[nodiscard]] pointer get ( ) const noexcept { return offset_ptr::ptr_from_offset ( offset_view ( offset ) ); }
     [[nodiscard]] pointer get ( ) noexcept { return std::as_const ( *this ).get ( ); }
 
-    [[nodiscard]] static pointer get ( offset_type offset_ ) noexcept {
-        return offset_ptr::ptr_from_offset ( offset_ptr::offset_view ( offset_ ) );
-    }
+    [[nodiscard]] static pointer get ( offset_type offset_ ) noexcept { return ptr_from_offset ( offset_view ( offset_ ) ); }
 
     [[nodiscard]] static size_type max_size ( ) noexcept {
         return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 0;
@@ -748,10 +746,18 @@ struct offset_ptr { // offset against this pointer.
     [[nodiscard]] bool is_weak ( ) const noexcept { return static_cast<bool> ( offset & weak_mask ); }
     [[nodiscard]] bool is_unique ( ) const noexcept { return not is_weak ( ); }
 
+    private:
+    offset_type offset = { };
+
+    [[nodiscard]] pointer addressof_this ( ) const noexcept {
+        return reinterpret_cast<pointer> ( const_cast<offset_ptr *> ( this ) );
+    }
+
+    // Static class functions and variables.
+
     [[nodiscard]] static constexpr offset_type offset_view ( offset_type o_ ) noexcept { return o_ & offset_mask; }
 
-    private:
-    [[nodiscard]] offset_type offset_from_ptr ( pointer p_ ) const noexcept {
+    [[nodiscard]] static offset_type offset_from_ptr ( pointer p_ ) noexcept {
         return static_cast<offset_type> ( p_ - offset_ptr::base );
     }
     [[nodiscard]] static pointer ptr_from_offset ( offset_type const offset_ ) noexcept {
@@ -763,20 +769,14 @@ struct offset_ptr { // offset against this pointer.
     }
     [[nodiscard]] static constexpr offset_type make_offset_mask ( ) noexcept { return ~make_weak_mask ( ); }
 
-    [[nodiscard]] pointer addressof_this ( ) const noexcept {
-        return reinterpret_cast<pointer> ( const_cast<offset_ptr *> ( this ) );
-    }
-
     static constexpr offset_type weak_mask   = offset_ptr::make_weak_mask ( );
     static constexpr offset_type offset_mask = offset_ptr::make_offset_mask ( );
 
-    offset_type offset = { };
-
-    [[nodiscard]] constexpr pointer mask_low ( pointer p_ ) noexcept {
+    [[nodiscard]] static constexpr pointer mask_low ( pointer p_ ) noexcept {
         return reinterpret_cast<pointer> ( ( reinterpret_cast<std::uintptr_t> ( p_ ) & 0xFFFF'FFFF'0000'0000 ) >> 4 );
     }
 
-    [[nodiscard]] int pointer_alignment ( void * ptr_ ) const noexcept {
+    [[nodiscard]] static int pointer_alignment ( void * ptr_ ) noexcept {
         return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
     }
 

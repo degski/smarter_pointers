@@ -40,6 +40,23 @@
 
 #include <experimental/fixed_capacity_vector>
 
+#include <boost/interprocess/offset_ptr.hpp>
+
+namespace sax {
+
+template<typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+void print_bits ( T const n_ ) noexcept {
+    using Tu = typename std::make_unsigned<T>::type;
+    Tu n;
+    std::memcpy ( &n, &n_, sizeof ( Tu ) );
+    Tu i = Tu ( 1 ) << ( sizeof ( Tu ) * 8 - 1 );
+    while ( i ) {
+        putchar ( int ( ( n & i ) > 0 ) + int ( 48 ) );
+        i >>= 1;
+    }
+}
+}; // namespace sax
+
 template<typename T>
 class unique_ptr {
 
@@ -324,7 +341,7 @@ struct offset_ptr {
         delete get ( result );
     }
     template<typename U>
-    void reset ( unique_ptr<U> && moving_ ) noexcept {
+    void reset ( offset_ptr<U> && moving_ ) noexcept {
         offset_ptr<T> result ( moving_ );
         std::swap ( result, *this );
         delete result.get ( );
@@ -396,7 +413,7 @@ thread_local typename offset_ptr<T>::offset_base offset_ptr<T>::base;
 */
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 template<typename Type>
 struct offset_ptr {
     public:
@@ -497,7 +514,7 @@ struct offset_ptr {
         delete get ( result );
     }
     template<typename U>
-    void reset ( unique_ptr<U> && moving_ ) noexcept {
+    void reset ( offset_ptr<U> && moving_ ) noexcept {
         offset_ptr<value_type> result ( moving_ );
         std::swap ( result, *this );
         delete result.get ( );
@@ -586,3 +603,156 @@ struct offset_ptr {
 
 template<typename Type>
 thread_local typename offset_ptr<Type>::offset_base offset_ptr<Type>::base;
+*/
+
+template<typename Type>
+struct offset_ptr { // offset against this pointer.
+    public:
+    using value_type    = Type;
+    using pointer       = value_type *;
+    using const_pointer = value_type const *;
+
+    using reference       = value_type &;
+    using const_reference = value_type const &;
+    using rv_reference    = value_type &&;
+
+    using size_type   = std::int32_t;
+    using offset_type = std::int32_t;
+
+    // Constructors.
+
+    explicit offset_ptr ( ) noexcept : offset ( 0 ) {}
+
+    explicit offset_ptr ( std::nullptr_t ) : offset ( 0 ) {}
+
+    explicit offset_ptr ( offset_ptr const & ) noexcept = delete;
+
+    offset_ptr ( offset_ptr && moving ) noexcept { moving.swap ( *this ); }
+
+    template<typename U>
+    explicit offset_ptr ( offset_ptr<U> && moving ) noexcept {
+        offset_ptr<value_type> tmp ( moving.release ( ) );
+        tmp.swap ( *this );
+    }
+
+    offset_ptr ( pointer p_ ) noexcept : offset ( offset_from_ptr ( p_ ) ) {
+        std::cout << p_ << " " << mask_low ( p_ ) << "   " << this << " " << pointer_alignment ( this ) << " "
+                  << ( reinterpret_cast<char *> ( p_ ) - reinterpret_cast<char *> ( this ) ) << nl;
+        // assert ( get ( ) == p_ );
+    }
+
+    // Destruct.
+
+    ~offset_ptr ( ) noexcept {
+        // if ( is_unique ( ) )
+        //  delete get ( );
+    }
+
+    // Assignment.
+
+    [[maybe_unused]] offset_ptr & operator= ( std::nullptr_t ) {
+        reset ( );
+        return *this;
+    }
+
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr const & ) noexcept = delete;
+
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr && moving ) noexcept {
+        moving.swap ( *this );
+        return *this;
+    }
+
+    template<typename U>
+    [[maybe_unused]] offset_ptr & operator= ( offset_ptr<U> && moving ) noexcept {
+        offset_ptr<value_type> tmp ( moving.release ( ) );
+        tmp.swap ( *this );
+        return *this;
+    }
+
+    [[maybe_unused]] offset_ptr & operator= ( pointer p_ ) noexcept {
+        offset = offset_from_pointer ( p_ );
+        assert ( get ( ) == p_ );
+        return *this;
+    }
+
+    // Get.
+
+    [[nodiscard]] const_pointer operator-> ( ) const noexcept { return get ( ); }
+    [[nodiscard]] pointer operator-> ( ) noexcept { return get ( ); }
+
+    [[nodiscard]] const_reference operator* ( ) const noexcept { return *get ( ); }
+    [[nodiscard]] reference operator* ( ) noexcept { return *get ( ); }
+
+    [[nodiscard]] pointer get ( ) const noexcept { return ptr_from_offset ( offset_ptr::offset_view ( offset ) ); }
+    [[nodiscard]] pointer get ( ) noexcept { return std::as_const ( *this ).get ( ); }
+
+    [[nodiscard]] static size_type max_size ( ) noexcept {
+        return static_cast<size_type> ( std::numeric_limits<offset_type>::max ( ) ) >> 1;
+    }
+
+    void swap ( offset_ptr & src ) noexcept {
+        auto delta_offset = static_cast<offset_type> ( std::addressof ( src ) - this );
+        std::swap ( offset, src.offset );
+        offset_ptr::offset_view ( offset ) += delta_offset;
+        offset_ptr::offset_view ( src.offset ) -= delta_offset;
+    }
+
+    // Other.
+
+    [[nodiscard]] pointer release ( ) noexcept {
+        offset_type result = { };
+        std::swap ( result, offset );
+        return get ( result );
+    }
+
+    void reset ( ) noexcept { delete release ( ); }
+    void reset ( pointer p_ = pointer ( ) ) noexcept {
+        offset_type result = offset_from_ptr ( p_ );
+        std::swap ( result, offset );
+        delete get ( result );
+    }
+    template<typename U>
+    void reset ( offset_ptr<U> && moving_ ) noexcept {
+        offset_ptr<value_type> result ( moving_ );
+        std::swap ( result, *this );
+        delete result.get ( );
+    }
+
+    void weakify ( ) noexcept { offset = ( offset_ptr::offset_view ( offset ) | weak_mask ); }
+    void uniquify ( ) noexcept { offset &= offset_mask; }
+
+    [[nodiscard]] bool is_weak ( ) const noexcept { return static_cast<bool> ( offset & weak_mask ); }
+    [[nodiscard]] bool is_unique ( ) const noexcept { return not is_weak ( ); }
+
+    [[nodiscard]] static constexpr offset_type offset_view ( offset_type o_ ) noexcept { return o_ & offset_mask; }
+
+    private:
+    [[nodiscard]] offset_type offset_from_ptr ( pointer p_ ) const noexcept {
+        return static_cast<offset_type> ( p_ - addressof_this ( ) );
+    }
+    [[nodiscard]] pointer ptr_from_offset ( offset_type const offset_ ) const noexcept {
+        return addressof_this ( ) + offset_ptr::offset_view ( offset_ );
+    }
+
+    [[nodiscard]] static constexpr offset_type make_weak_mask ( ) noexcept {
+        return static_cast<offset_type> ( std::uint64_t ( 1 ) << ( sizeof ( size_type ) * 8 - 1 ) );
+    }
+    [[nodiscard]] static constexpr offset_type make_offset_mask ( ) noexcept { return ~make_weak_mask ( ); }
+
+    [[nodiscard]] pointer addressof_this ( ) const noexcept {
+        return reinterpret_cast<pointer> ( const_cast<offset_ptr *> ( this ) );
+    }
+
+    static constexpr offset_type weak_mask   = offset_ptr::make_weak_mask ( );
+    static constexpr offset_type offset_mask = offset_ptr::make_offset_mask ( );
+
+    offset_type offset = { };
+
+    [[nodiscard]] static constexpr pointer mask_low ( pointer p_ ) noexcept {
+        return reinterpret_cast<pointer> ( ( reinterpret_cast<std::uintptr_t> ( p_ ) & 0xFFFF'FFFF'0000'0000 ) >> 4 );
+    }
+
+    [[nodiscard]] static inline int pointer_alignment ( void * ptr_ ) noexcept {
+        return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
+    }
+};

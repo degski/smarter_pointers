@@ -60,21 +60,27 @@ void handleEptr ( std::exception_ptr eptr ) { // Passing by value is ok.
     }
 }
 
-int main ( ) {
+#include <windows.h>
+#include <tchar.h>
+#include <stdio.h>
+#include <intsafe.h>
+
+std::vector<HANDLE> heaps ( ) noexcept {
+    std::vector<HANDLE> h;
+    do {
+        h.resize ( GetProcessHeaps ( 0, NULL ) );
+    } while ( h.size ( ) != GetProcessHeaps ( h.size ( ), h.data ( ) ) );
+    return h;
+}
+
+int main768 ( ) {
 
     std::exception_ptr eptr;
 
     try {
 
-        offset_ptr<int> p;
+        offset_ptr<int> p0 ( ( int * ) std::malloc ( 8 * sizeof ( int ) ) );
 
-        /*
-        offset_ptr<int> p;
-        int i = 999;
-        p     = &i;
-
-        std::cout << p.get ( ) << nl;
-        */
         std::cout << "leaving try block" << nl;
     }
     catch ( ... ) {

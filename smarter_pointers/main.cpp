@@ -68,6 +68,8 @@ int main ( ) {
 
         heap_offset_ptr<int> p0 ( ( int * ) std::malloc ( 8 * sizeof ( int ) ) );
 
+        p0.weakify ( );
+
         std::cout << "leaving try block" << nl;
     }
     catch ( ... ) {

@@ -725,7 +725,7 @@ struct offset_ptr { // offset against this pointer.
     }
 
     void reset ( ) noexcept {
-        if constexpr ( not std::is_scalar<Type>::value ) {
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
             if ( is_unique ( ) )
                 delete release ( );
         }
@@ -748,11 +748,22 @@ struct offset_ptr { // offset against this pointer.
         }
     }
 
-    void weakify ( ) noexcept { offset = ( offset_ptr::offset_view ( offset ) | weak_mask ); }
-    void uniquify ( ) noexcept { offset &= offset_mask; }
-
-    [[nodiscard]] bool is_weak ( ) const noexcept { return static_cast<bool> ( offset & weak_mask ); }
-    [[nodiscard]] bool is_unique ( ) const noexcept { return not is_weak ( ); }
+    template<typename W = Where>
+    std::enable_if_t<std::is_same<W, heap_offset_ptr_pointer>::value, void> weakify ( ) noexcept {
+        offset = ( offset_ptr::offset_view ( offset ) | weak_mask );
+    }
+    template<typename W = Where>
+    std::enable_if_t<std::is_same<W, heap_offset_ptr_pointer>::value, void> uniquify ( ) noexcept {
+        offset &= offset_mask;
+    }
+    template<typename W = Where>
+    [[nodiscard]] std::enable_if_t<std::is_same<W, heap_offset_ptr_pointer>::value, bool> is_weak ( ) const noexcept {
+        return static_cast<bool> ( offset & weak_mask );
+    }
+    template<typename W = Where>
+    [[nodiscard]] std::enable_if_t<std::is_same<W, heap_offset_ptr_pointer>::value, bool> is_unique ( ) const noexcept {
+        return not is_weak ( );
+    }
 
     private:
     offset_type offset = { };
@@ -763,13 +774,25 @@ struct offset_ptr { // offset against this pointer.
 
     // Static class functions and variables.
 
-    [[nodiscard]] static constexpr offset_type offset_view ( offset_type o_ ) noexcept { return o_ & offset_mask; }
+    [[nodiscard]] static constexpr offset_type offset_view ( offset_type o_ ) noexcept {
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
+            return o_ & offset_mask;
+        }
+        else {
+            return o_;
+        }
+    }
 
     [[nodiscard]] static offset_type offset_from_ptr ( pointer p_ ) noexcept {
         return static_cast<offset_type> ( p_ - offset_ptr::base );
     }
     [[nodiscard]] static pointer ptr_from_offset ( offset_type const offset_ ) noexcept {
-        return offset_ptr::base + offset_ptr::offset_view ( offset_ );
+        if constexpr ( std::is_same<Where, heap_offset_ptr_pointer>::value ) {
+            return offset_ptr::base + offset_ptr::offset_view ( offset_ );
+        }
+        else {
+            return offset_ptr::base + offset_;
+        }
     }
 
     [[nodiscard]] static constexpr offset_type make_weak_mask ( ) noexcept {

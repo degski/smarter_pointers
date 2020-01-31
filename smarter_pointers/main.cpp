@@ -84,18 +84,18 @@ struct simple_map {
 
     [[nodiscard]] size_type size ( ) const noexcept { return m_end - data ( ); }
 
-    template<class M>
-    std::pair<iterator, bool> insert_or_assign ( key_type && key_, M && value_ ) noexcept {
+    template<typename... Args>
+    std::pair<iterator, bool> insert_or_assign ( key_type && key_, Args &&... value_ ) noexcept {
         auto it = std::lower_bound ( begin ( ), end ( ), key_, map_comaparator<key_value_type> ( ) );
         if ( it->first == key_ ) {
-            it->second = std::move ( value_ );
+            it->second = { std::forward<Args> ( value_ )... };
             return { std::move ( it ), false };
         }
         else if ( size ( ) < capacity ( ) ) {
             ++m_end;
             for ( auto rit = rbegin ( ); it != rit; ++rit )
                 *rit = *std::next ( rit );
-            *it = { std::move ( key_ ), std::move ( value_ ) };
+            *it = { std::move ( key_ ), { std::forward<Args> ( value_ )... } };
             return { it, true };
         }
         else {
@@ -194,13 +194,15 @@ int main ( ) {
 
         simple_map<void *, std::size_t, 8> m;
 
-        std::cout << "simple_map " << sizeof ( m ) << " " << m.size ( ) << nl;
+        // std::cout << "simple_map " << sizeof ( m ) << " " << m.size ( ) << nl;
 
         sax::heap_offset_ptr<int> p0 ( ( int * ) std::malloc ( 8 * sizeof ( int ) ) );
 
         p0.weakify ( );
 
-        std::cout << "leaving try block " << sizeof ( p0 ) << " " << sax::detail::win::heaps ( ).size ( ) << nl;
+        // std::cout << sax::detail::win::system<>::granularity ( ) << nl;
+        std::cout << sax::detail::win::system<>::application_memory_bounds ( ).first << nl;
+        // std::cout << sax::detail::win::system<>::application_memory_bounds ( ).second << nl;
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.

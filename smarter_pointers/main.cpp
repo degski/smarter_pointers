@@ -72,9 +72,11 @@ struct simple_map {
     using const_reverse_iterator = const_pointer;
 
     void clear ( ) noexcept {
-        for ( auto & v : *this )
-            v = { { }, {} };
-        m_data.data ( );
+        if constexpr ( not std::is_scalar<Value>::value ) {
+            for ( auto & v : *this )
+                v = { { }, {} };
+        }
+        m_end = begin ( );
     }
 
     [[nodiscard]] static constexpr size_type max_size ( ) noexcept { return Capacity; }
@@ -106,6 +108,13 @@ struct simple_map {
             if ( kv.first == key_ )
                 return std::addressof ( kv );
         }
+        return end ( );
+    }
+
+    iterator find ( value_type const & val_ ) const noexcept {
+        for ( key_value_type const & kv : *this )
+            if ( kv.second == val_ )
+                return std::addressof ( kv );
         return end ( );
     }
 
@@ -150,7 +159,7 @@ struct simple_map {
     }
 
     std::array<key_value_type, Capacity> m_data;
-    pointer m_end = m_data.data ( );
+    pointer m_end = begin ( );
 };
 
 void handleEptr ( std::exception_ptr eptr ) { // Passing by value is ok.

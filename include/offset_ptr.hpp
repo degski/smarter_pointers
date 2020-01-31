@@ -605,7 +605,10 @@ template<typename Type>
 thread_local typename offset_ptr<Type>::offset_base offset_ptr<Type>::base;
 */
 
-extern unsigned long __declspec( dllimport ) __stdcall GetProcessHeaps ( unsigned long NumberOfHeaps, void ** ProcessHeaps );
+#include <Windows.h>
+
+// extern unsigned long __declspec( dllimport ) __stdcall GetProcessHeaps ( unsigned long NumberOfHeaps, void ** ProcessHeaps );
+// extern __declspec( dllimport ) void * __stdcall GetProcessHeap ( );
 
 namespace sax {
 

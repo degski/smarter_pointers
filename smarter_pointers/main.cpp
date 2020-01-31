@@ -85,30 +85,44 @@ struct simple_map {
     [[nodiscard]] size_type size ( ) const noexcept { return m_end - data ( ); }
 
     template<class M>
-    std::pair<iterator, bool> insert_or_assign ( key_type && k, M && obj ) noexcept {
-        auto it = find ( k );
-        if ( end ( ) != it ) {
-            it->second = std::move ( obj );
+    std::pair<iterator, bool> insert_or_assign ( key_type && key_, M && value_ ) noexcept {
+        auto it = std::lower_bound ( begin ( ), end ( ), key_, map_comaparator<key_value_type> ( ) );
+        if ( it->first == key_ ) {
+            it->second = std::move ( value_ );
             return { std::move ( it ), false };
         }
         else if ( size ( ) < capacity ( ) ) {
-            m_data[ m_end ] = { std::move ( k ), std::move ( obj ) };
-            std::sort ( begin ( ), end ( ), [] ( key_type const & a, key_type const & b ) noexcept { return a.key < b.key; } );
-            return { m_end++, true };
+            ++m_end;
+            for ( auto rit = rbegin ( ); it != rit; ++rit )
+                *rit = *std::next ( rit );
+            *it = { std::move ( key_ ), std::move ( value_ ) };
+            return { it, true };
         }
         else {
             return { nullptr, false };
         }
     }
 
-    iterator find ( key_type const & key_ ) const noexcept {
-        for ( key_value_type const & kv : *this ) {
-            if ( kv.first > key_ )
-                return end ( );
-            if ( kv.first == key_ )
+    template<typename Pair>
+    struct map_comaparator {
+        bool operator( ) ( Pair const & a, Pair const & b ) const noexcept { return a.first < b.first; }
+    };
+
+    iterator binary_find ( key_type const & key_ ) const noexcept {
+        auto first = std::lower_bound ( begin ( ), end ( ), key_, map_comaparator<key_value_type> ( ) );
+        return first != end ( ) and not map_comaparator<key_value_type> ( key_, *first ) ? first : end ( );
+    }
+
+    iterator linear_lowerbound ( key_type const & key ) const noexcept {
+        for ( key_value_type const & kv : *this )
+            if ( kv.first >= key )
                 return std::addressof ( kv );
-        }
         return end ( );
+    };
+
+    iterator linear_find ( key_type const & key_ ) const noexcept {
+        auto first = linear_lowerbound ( key_ );
+        return first != end ( ) and key_ == *first ? first : end ( );
     }
 
     iterator find ( value_type const & val_ ) const noexcept {

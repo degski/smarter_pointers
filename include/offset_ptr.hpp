@@ -31,6 +31,7 @@
 #include <array>
 #include <memory>
 #include <new>
+#include <iomanip>
 #include <sax/iostream.hpp>
 #include <random>
 #include <stdexcept>
@@ -41,21 +42,6 @@
 #include <experimental/fixed_capacity_vector>
 
 #include <boost/interprocess/offset_ptr.hpp>
-
-namespace sax {
-
-template<typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
-void print_bits ( T const n_ ) noexcept {
-    using Tu = typename std::make_unsigned<T>::type;
-    Tu n;
-    std::memcpy ( &n, &n_, sizeof ( Tu ) );
-    Tu i = Tu ( 1 ) << ( sizeof ( Tu ) * 8 - 1 );
-    while ( i ) {
-        putchar ( int ( ( n & i ) > 0 ) + int ( 48 ) );
-        i >>= 1;
-    }
-}
-}; // namespace sax
 
 template<typename T>
 class unique_ptr {
@@ -618,7 +604,7 @@ namespace win {
 
 inline std::vector<void *> heaps ( ) noexcept {
     void * h[ 16 ];
-    size_t s = GetProcessHeaps ( 0, NULL );
+    unsigned long s = GetProcessHeaps ( 0, NULL );
     while ( GetProcessHeaps ( s, h ) != s )
         s = GetProcessHeaps ( 0, NULL );
     return { h, h + s };

@@ -89,7 +89,7 @@ struct simple_map {
 
     template<typename... Args>
     std::pair<iterator, bool> insert_or_assign ( key_type && key_, Args &&... value_ ) noexcept {
-        auto it = std::lower_bound ( begin ( ), end ( ), key_, map_comaparator<key_value_type> ( ) );
+        auto it = std::lower_bound ( begin ( ), end ( ), key_, map_comparator ( ) );
         if ( it->first == key_ ) {
             it->second = { std::forward<Args> ( value_ )... };
             return { std::move ( it ), false };
@@ -106,14 +106,16 @@ struct simple_map {
         }
     }
 
-    template<typename Pair>
-    struct map_comaparator {
-        bool operator( ) ( Pair const & a, Pair const & b ) const noexcept { return a.first < b.first; }
+    struct map_comparator {
+        template<typename Pair>
+        [[nodiscard]] bool operator( ) ( Pair const & a, Pair const & b ) noexcept {
+            return a.first < b.first;
+        }
     };
 
     iterator binary_find ( key_type const & key_ ) const noexcept {
-        auto first = std::lower_bound ( begin ( ), end ( ), key_, map_comaparator<key_value_type> ( ) );
-        return first != end ( ) and not map_comaparator<key_value_type> ( key_, *first ) ? first : end ( );
+        auto first = std::lower_bound ( begin ( ), end ( ), key_, map_comparator );
+        return first != end ( ) and not map_comparator ( key_, *first ) ? first : end ( );
     }
 
     iterator linear_lowerbound ( key_type const & key ) const noexcept {
@@ -179,117 +181,6 @@ struct simple_map {
     pointer m_end = begin ( );
 };
 
-template<typename Value, size_t Capacity>
-struct virtual_vector {
-
-    public:
-    using value_type = Value;
-
-    using pointer       = value_type *;
-    using const_pointer = value_type const *;
-
-    using reference       = value_type &;
-    using const_reference = value_type const &;
-    using rv_reference    = value_type &&;
-
-    using size_type       = std::size_t;
-    using difference_type = std::make_signed<size_type>;
-
-    using iterator               = pointer;
-    using const_iterator         = const_pointer;
-    using reverse_iterator       = pointer;
-    using const_reverse_iterator = const_pointer;
-
-    virtual_vector ( ) {}
-
-    void clear ( ) noexcept {
-        if constexpr ( not std::is_scalar<Value>::value ) {
-            for ( auto & v : *this )
-                v.~value_type ( );
-        }
-        m_end = m_begin;
-    }
-
-    [[nodiscard]] static constexpr size_type max_size ( ) noexcept { return Capacity; }
-    [[nodiscard]] static constexpr size_type capacity ( ) noexcept { return Capacity; }
-
-    [[nodiscard]] size_type size ( ) const noexcept { return m_end - m_begin; }
-
-    template<typename... Args>
-    reference emplace_back ( Args &&... value_ ) noexcept {}
-    /*
-    template<typename Pair>
-    struct map_comaparator {
-        bool operator( ) ( Pair const & a, Pair const & b ) const noexcept { return a.first < b.first; }
-    };
-
-    iterator binary_find ( key_type const & key_ ) const noexcept {
-        auto first = std::lower_bound ( begin ( ), end ( ), key_, map_comaparator<key_value_type> ( ) );
-        return first != end ( ) and not map_comaparator<key_value_type> ( key_, *first ) ? first : end ( );
-    }
-
-    iterator linear_lowerbound ( key_type const & key ) const noexcept {
-        for ( key_value_type const & kv : *this )
-            if ( kv.first >= key )
-                return std::addressof ( kv );
-        return end ( );
-    };
-
-    iterator linear_find ( key_type const & key_ ) const noexcept {
-        auto first = linear_lowerbound ( key_ );
-        return first != end ( ) and key_ == *first ? first : end ( );
-    }
-
-    iterator find ( value_type const & val_ ) const noexcept {
-        for ( key_value_type const & kv : *this )
-            if ( kv.second == val_ )
-                return std::addressof ( kv );
-        return end ( );
-    }
-    */
-    [[nodiscard]] const_pointer data ( ) const noexcept { return m_begin; }
-    [[nodiscard]] pointer data ( ) noexcept { return const_cast<pointer> ( std::as_const ( *this ).data ( ) ); }
-
-    // Iterators.
-
-    [[nodiscard]] const_iterator begin ( ) const noexcept { return m_begin; }
-    [[nodiscard]] const_iterator cbegin ( ) const noexcept { return begin ( ); }
-    [[nodiscard]] iterator begin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).begin ( ) ); }
-
-    [[nodiscard]] const_iterator end ( ) const noexcept { return m_end; }
-    [[nodiscard]] const_iterator cend ( ) const noexcept { return end ( ); }
-    [[nodiscard]] iterator end ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).end ( ) ); }
-
-    [[nodiscard]] const_iterator rbegin ( ) const noexcept { return m_end - 1; }
-    [[nodiscard]] const_iterator crbegin ( ) const noexcept { return rbegin ( ); }
-    [[nodiscard]] iterator rbegin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rbegin ( ) ); }
-
-    [[nodiscard]] const_iterator rend ( ) const noexcept { return m_begin - 1; }
-    [[nodiscard]] const_iterator crend ( ) const noexcept { return rend ( ); }
-    [[nodiscard]] iterator rend ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rend ( ) ); }
-
-    [[nodiscard]] const_reference front ( ) const noexcept { return *begin ( ); }
-    [[nodiscard]] reference front ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).front ( ) ); }
-
-    [[nodiscard]] const_reference back ( ) const noexcept { return *rbegin ( ); }
-    [[nodiscard]] reference back ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).back ( ) ); }
-
-    [[nodiscard]] const_reference at ( size_type const i_ ) const {
-        if ( 0 <= i_ and i_ < size ( ) )
-            return m_begin[ i_ ];
-        else
-            throw std::runtime_error ( "virtual_vector: index out of bounds" );
-    }
-    [[nodiscard]] reference at ( size_type const i_ ) { return const_cast<reference> ( std::as_const ( *this ).at ( i_ ) ); }
-
-    [[nodiscard]] const_reference operator[] ( size_type const i_ ) const noexcept { return m_begin[ i_ ]; }
-    [[nodiscard]] reference operator[] ( size_type const i_ ) noexcept {
-        return const_cast<reference> ( std::as_const ( *this ).operator[] ( i_ ) );
-    }
-
-    pointer m_begin = nullptr, m_end = nullptr;
-};
-
 void handleEptr ( std::exception_ptr eptr ) { // Passing by value is ok.
     try {
         if ( eptr )
@@ -305,15 +196,6 @@ int main ( ) {
     std::exception_ptr eptr;
 
     try {
-
-        virtual_vector<int, 8> m;
-
-        // std::cout << "simple_map " << sizeof ( m ) << " " << m.size ( ) << nl;
-
-        sax::heap_offset_ptr<int> p0 ( ( int * ) std::malloc ( 8 * sizeof ( int ) ) );
-
-        p0.weakify ( );
-
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.
@@ -324,27 +206,3 @@ int main ( ) {
 
     return EXIT_SUCCESS;
 }
-
-/*
-
-int a1[] = { 1, 2, 3 };
-int a2[] = { 10, 11, 12 };
-int * based;
-
-typedef int __based ( based ) * pBasedPtr;
-
-using namespace std;
-int main ( ) {
-    based        = &a1[ 0 ];
-    pBasedPtr pb = 0;
-
-    cout << pb << endl;
-    cout << ( pb + 1 ) << endl;
-
-    based = &a2[ 0 ];
-
-    cout << *pb << endl;
-    cout << *( pb + 1 ) << endl;
-}
-
-*/
